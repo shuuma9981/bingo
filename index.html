@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>5×5 ビンゴ</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #111827;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #60a5fa;
+            --checked: #22c55e;
+            --cell: #1f2937;
+            --cell-border: #374151;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        html,
+        body {
+            height: 100%
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, sans-serif;
+            display: grid;
+            place-items: center;
+        }
+
+        .app {
+            width: min(1000px, 94vw);
+        }
+
+        header {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            justify-content: space-between;
+            margin: 18px 0 14px
+        }
+
+        h1 {
+            font-size: clamp(20px, 2.8vw, 28px);
+            margin: 0;
+            letter-spacing: 0.02em
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem
+        }
+
+        button {
+            appearance: none;
+            border: 1px solid #2b3443;
+            background: #0b1220;
+            color: var(--text);
+            padding: .55rem .8rem;
+            border-radius: .7rem;
+            cursor: pointer;
+            font-weight: 600;
+            letter-spacing: .02em;
+            transition: transform .02s ease, background .2s ease, border-color .2s ease;
+        }
+
+        button:hover {
+            background: #0d1528;
+            border-color: #3b4658
+        }
+
+        button:active {
+            transform: translateY(1px)
+        }
+
+        button.success {
+            border-color: #16a34a
+        }
+
+        button.warn {
+            border-color: #f59e0b
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: .92rem;
+            margin: 6px 0 16px
+        }
+
+        .board {
+            background: var(--panel);
+            padding: clamp(10px, 1.6vw, 16px);
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .03);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: clamp(6px, 1vw, 10px);
+        }
+
+        .cell {
+            min-height: clamp(70px, 11.5vw, 140px);
+            background: var(--cell);
+            border: 1px solid var(--cell-border);
+            border-radius: 14px;
+            padding: 10px;
+            text-align: center;
+            display: grid;
+            place-items: center;
+            font-weight: 700;
+            line-height: 1.2;
+            outline: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cell[contenteditable="true"] {
+            cursor: text
+        }
+
+        .cell:focus {
+            box-shadow: 0 0 0 2px var(--accent) inset
+        }
+
+        .cell-inner {
+            width: 100%;
+        }
+
+        .cell p {
+            margin: 0;
+            font-size: clamp(14px, 1.6vw, 22px);
+            word-break: break-word
+        }
+
+        .cell.checked {
+            background: linear-gradient(180deg, #22c55e, #16a34a);
+            color: #06240f;
+            border-color: #16a34a;
+        }
+
+        .cell.checked:after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: .15;
+            background: repeating-linear-gradient(45deg, #fff, #fff 2px, transparent 2px, transparent 6px);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <header>
+            <h1>5×5 ビンゴ（自由入力／クリックで色変更）</h1>
+            <div class="toolbar">
+                <button class="success" id="clearChecks">チェック解除</button>
+                <button class="warn" id="clearAll">全消去</button>
+            </div>
+        </header>
+
+        <p class="hint">各マスはクリックで <strong>チェック</strong>、ダブルクリックで <strong>編集</strong> できます（スマホは長押し→編集）。</p>
+
+        <section class="board">
+            <div class="grid" id="grid" aria-label="ビンゴボード 5×5"></div>
+        </section>
+    </div>
+
+    <script>
+        const gridEl = document.getElementById('grid');
+
+        function makeCell(index) {
+            const d = document.createElement('div');
+            d.className = 'cell';
+            d.role = 'button';
+            d.tabIndex = 0;
+            d.dataset.index = index;
+
+            const p = document.createElement('p');
+            p.textContent = '';
+
+            const wrap = document.createElement('div');
+            wrap.className = 'cell-inner';
+            wrap.appendChild(p);
+            d.appendChild(wrap);
+
+            d.addEventListener('click', (e) => {
+                if (d.isContentEditable) return;
+                d.classList.toggle('checked');
+            });
+
+            d.addEventListener('keydown', (e) => {
+                if (d.isContentEditable) return;
+                if (e.code === 'Space' || e.code === 'Enter') {
+                    e.preventDefault(); d.classList.toggle('checked');
+                }
+            });
+
+            let pressTimer;
+            d.addEventListener('dblclick', () => startEdit(d));
+            d.addEventListener('touchstart', () => { pressTimer = setTimeout(() => startEdit(d), 420); });
+            d.addEventListener('touchend', () => clearTimeout(pressTimer));
+
+            return d;
+        }
+
+        function startEdit(cell) {
+            if (cell.isContentEditable) return;
+            cell.contentEditable = 'true';
+            const p = cell.querySelector('p');
+            const range = document.createRange();
+            range.selectNodeContents(p);
+            range.collapse(false);
+            const sel = window.getSelection();
+            sel.removeAllRanges(); sel.addRange(range);
+            p.focus();
+
+            const finish = () => { cell.contentEditable = 'false'; };
+
+            const onKey = (e) => {
+                if ((e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
+                    e.preventDefault(); finish();
+                }
+            };
+            cell.addEventListener('keydown', onKey, { once: false });
+            cell.addEventListener('blur', () => finish(), { once: true });
+        }
+
+        function build() {
+            gridEl.innerHTML = '';
+            for (let i = 0; i < 25; i++) gridEl.appendChild(makeCell(i));
+        }
+
+        document.getElementById('clearChecks').addEventListener('click', () => {
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('checked'));
+        });
+
+        document.getElementById('clearAll').addEventListener('click', () => {
+            if (!confirm('すべての文字とチェックを消去します。よろしいですか？')) return;
+            document.querySelectorAll('.cell').forEach(c => {
+                c.querySelector('p').innerHTML = '';
+                c.classList.remove('checked');
+            });
+        });
+
+        build();
+    </script>
+</body>
+
+</html>
