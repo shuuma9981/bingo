@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>5×5 ビンゴ</title>
+    <title>2つの5×5ビンゴ（自動保存・長押し編集）</title>
     <style>
         :root {
             --bg: #0f172a;
@@ -12,7 +12,8 @@
             --text: #e5e7eb;
             --muted: #9ca3af;
             --accent: #60a5fa;
-            --checked: #22c55e;
+            --checked: #ef4444;
+            /* 赤 */
             --cell: #1f2937;
             --cell-border: #374151;
         }
@@ -33,30 +34,24 @@
             font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, sans-serif;
             display: grid;
             place-items: center;
+            padding: 20px;
         }
 
         .app {
-            width: min(1000px, 94vw);
-        }
-
-        header {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            justify-content: space-between;
-            margin: 18px 0 14px
+            width: min(1200px, 96vw);
         }
 
         h1 {
+            text-align: center;
             font-size: clamp(20px, 2.8vw, 28px);
-            margin: 0;
-            letter-spacing: 0.02em
+            margin: 0 0 .75rem
         }
 
         .toolbar {
             display: flex;
-            flex-wrap: wrap;
-            gap: .5rem
+            gap: .5rem;
+            justify-content: center;
+            margin: 0 0 1rem
         }
 
         button {
@@ -89,17 +84,18 @@
             border-color: #f59e0b
         }
 
-        .hint {
-            color: var(--muted);
-            font-size: .92rem;
-            margin: 6px 0 16px
-        }
-
         .board {
             background: var(--panel);
             padding: clamp(10px, 1.6vw, 16px);
             border-radius: 18px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .03);
+            margin-bottom: 2rem;
+        }
+
+        .title {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: .5rem;
         }
 
         .grid {
@@ -122,6 +118,8 @@
             outline: none;
             position: relative;
             overflow: hidden;
+            -webkit-user-select: text;
+            user-select: text;
         }
 
         .cell[contenteditable="true"] {
@@ -132,10 +130,6 @@
             box-shadow: 0 0 0 2px var(--accent) inset
         }
 
-        .cell-inner {
-            width: 100%;
-        }
-
         .cell p {
             margin: 0;
             font-size: clamp(14px, 1.6vw, 22px);
@@ -143,75 +137,95 @@
         }
 
         .cell.checked {
-            background: linear-gradient(180deg, #22c55e, #16a34a);
-            color: #06240f;
-            border-color: #16a34a;
+            background: linear-gradient(180deg, var(--checked), #b91c1c);
+            color: #fff;
+            border-color: #7f1d1d;
         }
 
-        .cell.checked:after {
-            content: "";
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            opacity: .15;
-            background: repeating-linear-gradient(45deg, #fff, #fff 2px, transparent 2px, transparent 6px);
+        .hint {
+            color: var(--muted);
+            text-align: center;
+            margin: .25rem 0 1rem
         }
     </style>
 </head>
 
 <body>
     <div class="app">
-        <header>
-            <h1>5×5 ビンゴ（自由入力／クリックで色変更）</h1>
-            <div class="toolbar">
-                <button class="success" id="clearChecks">チェック解除</button>
-                <button class="warn" id="clearAll">全消去</button>
-            </div>
-        </header>
-
-        <p class="hint">各マスはクリックで <strong>チェック</strong>、ダブルクリックで <strong>編集</strong> できます（スマホは長押し→編集）。</p>
+        <h1>2つのビンゴ（クリックで赤／ダブルクリック or 長押しで編集）</h1>
+        <div class="hint">変更は自動保存され、次回開いた時に復元されます（この端末・このブラウザ内）。</div>
+        <div class="toolbar">
+            <button class="success" id="clearChecks">チェック解除</button>
+            <button class="warn" id="clearAll">全消去</button>
+        </div>
 
         <section class="board">
-            <div class="grid" id="grid" aria-label="ビンゴボード 5×5"></div>
+            <div class="title">🎯 趣味ビンゴ</div>
+            <div class="grid" id="bingo1"></div>
+        </section>
+
+        <section class="board">
+            <div class="title">💼 職業ビンゴ</div>
+            <div class="grid" id="bingo2"></div>
         </section>
     </div>
 
     <script>
-        const gridEl = document.getElementById('grid');
+        // 初期語彙
+        const hobbies = [
+            'カラオケ', '旅行', 'ライブ', '読書', '家庭菜園', 'ドラマ', 'バーベキュー', 'ドライブ', 'カフェ', '食べ歩き',
+            'ジム', '釣り', 'ゲーム', '料理', '映画', '楽器演奏', '博物館', 'お酒', 'おえかき', 'ヨガ',
+            '観劇', '裁縫', 'ボドゲ', '占い', 'スポーツ'
+        ];
 
-        function makeCell(index) {
-            const d = document.createElement('div');
-            d.className = 'cell';
-            d.role = 'button';
-            d.tabIndex = 0;
-            d.dataset.index = index;
+        const jobs = [
+            '看護師', '保育士', '介護士', '歯科衛生士', 'アパレル', '管理栄養士', '美容師', 'ネイリスト', '不動産', 'マスコミ',
+            '銀行員', '教員・塾講師', '公務員', '研究職', '秘書・受付', 'システムエンジニア', 'Webデザイナー', '航空関連', 'インストラクター', '調理師',
+            '経理', '編集者', '自営業', '学生', '主婦'
+        ];
 
+        // localStorage key
+        const KEY = 'bingo-2boards-v1';
+
+        // セル生成（長押しで編集、クリックでチェック）
+        function makeCell(text) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.tabIndex = 0;
             const p = document.createElement('p');
-            p.textContent = '';
+            p.textContent = text || '';
+            cell.appendChild(p);
 
-            const wrap = document.createElement('div');
-            wrap.className = 'cell-inner';
-            wrap.appendChild(p);
-            d.appendChild(wrap);
-
-            d.addEventListener('click', (e) => {
-                if (d.isContentEditable) return;
-                d.classList.toggle('checked');
+            // クリックでチェック切替（編集中は無効）
+            cell.addEventListener('click', () => {
+                if (cell.isContentEditable) return;
+                cell.classList.toggle('checked');
+                saveAuto();
             });
 
-            d.addEventListener('keydown', (e) => {
-                if (d.isContentEditable) return;
+            // キーボード操作（Space/Enter）
+            cell.addEventListener('keydown', (e) => {
+                if (cell.isContentEditable) return;
                 if (e.code === 'Space' || e.code === 'Enter') {
-                    e.preventDefault(); d.classList.toggle('checked');
+                    e.preventDefault();
+                    cell.classList.toggle('checked');
+                    saveAuto();
                 }
             });
 
-            let pressTimer;
-            d.addEventListener('dblclick', () => startEdit(d));
-            d.addEventListener('touchstart', () => { pressTimer = setTimeout(() => startEdit(d), 420); });
-            d.addEventListener('touchend', () => clearTimeout(pressTimer));
+            // ダブルクリックで編集
+            cell.addEventListener('dblclick', () => startEdit(cell));
 
-            return d;
+            // スマホ：長押しで編集
+            let pressTimer = null;
+            const startPress = () => { pressTimer = setTimeout(() => startEdit(cell), 450); };
+            const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+            cell.addEventListener('touchstart', startPress, { passive: true });
+            cell.addEventListener('touchend', cancelPress);
+            cell.addEventListener('touchmove', cancelPress);
+            cell.addEventListener('touchcancel', cancelPress);
+
+            return cell;
         }
 
         function startEdit(cell) {
@@ -225,7 +239,7 @@
             sel.removeAllRanges(); sel.addRange(range);
             p.focus();
 
-            const finish = () => { cell.contentEditable = 'false'; };
+            const finish = () => { cell.contentEditable = 'false'; saveAuto(); };
 
             const onKey = (e) => {
                 if ((e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
@@ -236,24 +250,72 @@
             cell.addEventListener('blur', () => finish(), { once: true });
         }
 
-        function build() {
-            gridEl.innerHTML = '';
-            for (let i = 0; i < 25; i++) gridEl.appendChild(makeCell(i));
+        // ボード構築
+        function createBoard(containerId, words) {
+            const grid = document.getElementById(containerId);
+            grid.innerHTML = '';
+            words.forEach(w => grid.appendChild(makeCell(w)));
         }
 
-        document.getElementById('clearChecks').addEventListener('click', () => {
-            document.querySelectorAll('.cell').forEach(c => c.classList.remove('checked'));
-        });
+        // シリアライズ／復元（両ボードまとめて）
+        function serialize() {
+            const collect = (gridId) => Array.from(document.querySelectorAll(`#${gridId} .cell`)).map(c => ({
+                text: c.querySelector('p').innerHTML,
+                checked: c.classList.contains('checked')
+            }));
+            return {
+                board1: collect('bingo1'),
+                board2: collect('bingo2')
+            };
+        }
 
-        document.getElementById('clearAll').addEventListener('click', () => {
-            if (!confirm('すべての文字とチェックを消去します。よろしいですか？')) return;
-            document.querySelectorAll('.cell').forEach(c => {
-                c.querySelector('p').innerHTML = '';
-                c.classList.remove('checked');
+        function apply(data) {
+            if (!data) return;
+            const applyTo = (gridId, arr) => {
+                const cells = Array.from(document.querySelectorAll(`#${gridId} .cell`));
+                (arr || []).forEach((v, i) => {
+                    if (!cells[i]) return;
+                    cells[i].querySelector('p').innerHTML = v.text || '';
+                    cells[i].classList.toggle('checked', !!v.checked);
+                });
+            };
+            applyTo('bingo1', data.board1);
+            applyTo('bingo2', data.board2);
+        }
+
+        function saveAuto() {
+            try { localStorage.setItem(KEY, JSON.stringify(serialize())); } catch (e) { }
+        }
+        function loadFromStorage() {
+            try {
+                const raw = localStorage.getItem(KEY);
+                if (raw) apply(JSON.parse(raw));
+            } catch (e) { }
+        }
+
+        // 初期化
+        function init() {
+            createBoard('bingo1', hobbies);
+            createBoard('bingo2', jobs);
+            loadFromStorage();
+        }
+
+        // ツールバー
+        document.addEventListener('DOMContentLoaded', () => {
+            init();
+            document.getElementById('clearChecks').addEventListener('click', () => {
+                document.querySelectorAll('.cell').forEach(c => c.classList.remove('checked'));
+                saveAuto();
+            });
+            document.getElementById('clearAll').addEventListener('click', () => {
+                if (!confirm('すべての文字とチェックを消去します。よろしいですか？')) return;
+                document.querySelectorAll('.cell').forEach(c => {
+                    c.querySelector('p').innerHTML = '';
+                    c.classList.remove('checked');
+                });
+                saveAuto();
             });
         });
-
-        build();
     </script>
 </body>
 
