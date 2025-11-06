@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>2つの5×5ビンゴ（自動保存・長押し編集）</title>
+    <title>婚活ビンゴ</title>
     <style>
         :root {
             --bg: #0f172a;
@@ -152,7 +152,7 @@
 
 <body>
     <div class="app">
-        <h1>2つのビンゴ（クリックで赤／ダブルクリック or 長押しで編集）</h1>
+        <h1>婚活ビンゴ（クリックで赤／ダブルクリック or 長押しで編集）</h1>
         <div class="hint">変更は自動保存され、次回開いた時に復元されます（この端末・このブラウザ内）。</div>
         <div class="toolbar">
             <button class="success" id="clearChecks">チェック解除</button>
@@ -171,7 +171,6 @@
     </div>
 
     <script>
-        // 初期語彙
         const hobbies = [
             'カラオケ', '旅行', 'ライブ', '読書', '家庭菜園', 'ドラマ', 'バーベキュー', 'ドライブ', 'カフェ', '食べ歩き',
             'ジム', '釣り', 'ゲーム', '料理', '映画', '楽器演奏', '博物館', 'お酒', 'おえかき', 'ヨガ',
@@ -184,10 +183,8 @@
             '経理', '編集者', '自営業', '学生', '主婦'
         ];
 
-        // localStorage key
         const KEY = 'bingo-2boards-v1';
 
-        // セル生成（長押しで編集、クリックでチェック）
         function makeCell(text) {
             const cell = document.createElement('div');
             cell.className = 'cell';
@@ -196,14 +193,12 @@
             p.textContent = text || '';
             cell.appendChild(p);
 
-            // クリックでチェック切替（編集中は無効）
             cell.addEventListener('click', () => {
                 if (cell.isContentEditable) return;
                 cell.classList.toggle('checked');
                 saveAuto();
             });
 
-            // キーボード操作（Space/Enter）
             cell.addEventListener('keydown', (e) => {
                 if (cell.isContentEditable) return;
                 if (e.code === 'Space' || e.code === 'Enter') {
@@ -213,10 +208,8 @@
                 }
             });
 
-            // ダブルクリックで編集
             cell.addEventListener('dblclick', () => startEdit(cell));
 
-            // スマホ：長押しで編集
             let pressTimer = null;
             const startPress = () => { pressTimer = setTimeout(() => startEdit(cell), 450); };
             const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
@@ -250,14 +243,12 @@
             cell.addEventListener('blur', () => finish(), { once: true });
         }
 
-        // ボード構築
         function createBoard(containerId, words) {
             const grid = document.getElementById(containerId);
             grid.innerHTML = '';
             words.forEach(w => grid.appendChild(makeCell(w)));
         }
 
-        // シリアライズ／復元（両ボードまとめて）
         function serialize() {
             const collect = (gridId) => Array.from(document.querySelectorAll(`#${gridId} .cell`)).map(c => ({
                 text: c.querySelector('p').innerHTML,
@@ -293,14 +284,12 @@
             } catch (e) { }
         }
 
-        // 初期化
         function init() {
             createBoard('bingo1', hobbies);
             createBoard('bingo2', jobs);
             loadFromStorage();
         }
 
-        // ツールバー
         document.addEventListener('DOMContentLoaded', () => {
             init();
             document.getElementById('clearChecks').addEventListener('click', () => {
